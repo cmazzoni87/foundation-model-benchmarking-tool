@@ -159,7 +159,6 @@ class PromptOptimizer:
         
         # Check if result is already in cache
         if cache_key in self.prompt_cache:
-            logger.info(f"Using cached optimized prompt for model {model_id}")
             return self.prompt_cache[cache_key]
          
         # Get the appropriate target model for optimization  
@@ -170,36 +169,32 @@ class PromptOptimizer:
         optimized_prompt = prompt
         analysis = None
         
-        # Only call the API if the model ID is different from the target 
-        # (i.e., don't optimize claude-sonnet for claude-sonnet, but do optimize llama for llama)
-        if model_id != target_model_id:
-            for attempt in range(retry_count):
-                try:
-                    response = self.client.optimize_prompt(
-                        input={"textPrompt": {"text": prompt}},
-                        targetModelId=target_model_id
-                    )
-                    
-                    # Process the response
-                    for event in response.get('optimizedPrompt', []):
-                        if 'optimizedPromptEvent' in event:
-                            optimized_prompt = event['optimizedPromptEvent']
-                        elif 'analyzePromptEvent' in event:
-                            analysis = event['analyzePromptEvent']
-                    
-                    # Cache the result
-                    self.prompt_cache[cache_key] = (optimized_prompt, analysis)
-                    return optimized_prompt, analysis
+        # Always try to optimize the prompt
+        for attempt in range(retry_count):
+            try:
+                response = self.client.optimize_prompt(
+                    input={"textPrompt": {"text": prompt}},
+                    targetModelId=target_model_id
+                )
                 
-                except Exception as e:
-                    logger.warning(f"Attempt {attempt+1}/{retry_count} failed to optimize prompt: {str(e)}")
-                    if attempt < retry_count - 1:
-                        # Exponential backoff
-                        time.sleep(2 ** attempt)
-                    else:
-                        logger.error(f"Failed to optimize prompt after {retry_count} attempts. Using original prompt.")
-        else:
-            logger.info(f"Model {model_id} is already a target model. No optimization needed.")
+                # Process the response
+                for event in response.get('optimizedPrompt', []):
+                    if 'optimizedPromptEvent' in event:
+                        optimized_prompt = event['optimizedPromptEvent']
+                    elif 'analyzePromptEvent' in event:
+                        analysis = event['analyzePromptEvent']
+                
+                # Cache the result
+                self.prompt_cache[cache_key] = (optimized_prompt, analysis)
+                return optimized_prompt, analysis
+            
+            except Exception as e:
+                logger.warning(f"Attempt {attempt+1}/{retry_count} failed to optimize prompt: {str(e)}")
+                if attempt < retry_count - 1:
+                    # Exponential backoff
+                    time.sleep(2 ** attempt)
+                else:
+                    logger.error(f"Failed to optimize prompt after {retry_count} attempts. Using original prompt.")
         
         # If we reach here, return the original prompt
         self.prompt_cache[cache_key] = (optimized_prompt, analysis)

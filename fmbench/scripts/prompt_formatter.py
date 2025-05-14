@@ -26,7 +26,6 @@ class PromptFormatter:
             region: AWS region for Bedrock. If None, uses default boto3 region.
         """
         self.optimizer = PromptOptimizer(region)
-        self.formatted_prompt_cache = {}
 
     def format_prompt_for_model(self, payload: Dict, model_id: str) -> Dict:
         """
@@ -44,49 +43,23 @@ class PromptFormatter:
         
         # Skip if there's no prompt
         if "inputs" not in new_payload:
-            logger.warning(f"No 'inputs' found in payload: {new_payload}")
+            logger.warning(f"No 'inputs' found in payload")
             return new_payload
             
         prompt = new_payload["inputs"]
         
-        # Generate a cache key based on the prompt and model_id
-        cache_key = f"{model_id}:{prompt}"
-        
-        # Check if already formatted
-        if cache_key in self.formatted_prompt_cache:
-            logger.info(f"Using cached formatted prompt for model {model_id}")
-            new_payload["inputs"] = self.formatted_prompt_cache[cache_key]
-            new_payload["original_inputs"] = prompt
-            return new_payload
-        
         # Optimize the prompt
         try:
-            logger.info(f"Optimizing prompt for Bedrock model: {model_id}")
+            # Optimization is handled (including caching) by the optimizer
+            optimized_prompt, _ = self.optimizer.optimize_prompt(prompt, model_id)
             
-            # Short prompt preview (first 50 chars)
-            prompt_preview = prompt[:50] + "..." if len(prompt) > 50 else prompt
-            logger.info(f"Original prompt (preview): {prompt_preview}")
-            
-            optimized_prompt, analysis = self.optimizer.optimize_prompt(prompt, model_id)
-            
-            # Check if optimization actually changed the prompt
+            # Only log if prompt was changed
             if optimized_prompt != prompt:
-                logger.info(f"Prompt was optimized for model {model_id}")
-                # Short optimized prompt preview
-                opt_preview = optimized_prompt[:50] + "..." if len(optimized_prompt) > 50 else optimized_prompt
-                logger.info(f"Optimized prompt (preview): {opt_preview}")
-            else:
-                logger.info(f"Prompt was not changed for model {model_id}")
-            
-            # Cache the result
-            self.formatted_prompt_cache[cache_key] = optimized_prompt
+                logger.info(f"Prompt optimized for model {model_id}")
             
             # Update the payload
             new_payload["inputs"] = optimized_prompt
             new_payload["original_inputs"] = prompt
-            
-            if analysis:
-                logger.info(f"Prompt analysis: {analysis}")
                 
         except Exception as e:
             logger.error(f"Error formatting prompt for model {model_id}: {e}")
