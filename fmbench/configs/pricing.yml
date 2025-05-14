@@ -124,3 +124,33 @@ pricing:
     amazon.nova-pro-v1:0:
       input-per-1k-tokens: 0.0008
       output-per-1k-tokens: 0.0032
+    # OpenAI Models
+    gpt-4o:
+      input-per-1k-tokens: 0.005
+      output-per-1k-tokens: 0.015
+    gpt-4:
+      input-per-1k-tokens: 0.03
+      output-per-1k-tokens: 0.06
+    gpt-3.5-turbo:
+      input-per-1k-tokens: 0.0005
+      output-per-1k-tokens: 0.0015
+    # Azure OpenAI Models (same pricing as OpenAI)
+    azure-gpt-4:
+      input-per-1k-tokens: 0.03
+      output-per-1k-tokens: 0.06
+    azure-gpt-4o:
+      input-per-1k-tokens: 0.005
+      output-per-1k-tokens: 0.015
+    azure-gpt-35-turbo:
+      input-per-1k-tokens: 0.0005
+      output-per-1k-tokens: 0.0015
+    # Google Models
+    gemini-pro:
+      input-per-1k-tokens: 0.00025
+      output-per-1k-tokens: 0.0005
+    gemini-1.5-pro:
+      input-per-1k-tokens: 0.00025
+      output-per-1k-tokens: 0.0005
+    gemini-1.5-flash:
+      input-per-1k-tokens: 0.0001
+      output-per-1k-tokens: 0.0003
