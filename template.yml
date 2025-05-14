@@ -1,51 +1,43 @@
 AWSTemplateFormatVersion: 2010-09-09
-Description: "Foundation model benchmarking tool"
+Description: "Foundation model benchmarking tool - Environment Agnostic Resources"
 
 Parameters:
   S3BucketNameForRead:
-    Default: sagemaker-fmbench-read
+    Default: fmbench-read
     Type: String
     Description: Name of the Amazon S3 bucket for holding datasets, scripts and tokenizer files. AWS region and account id would be suffixed automatically for uniqueness.
     MinLength: 1
     MaxLength: 63
     AllowedPattern: (?!(^xn--|.+-s3alias$))^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$
   S3BucketNameForWrite:
-    Default: sagemaker-fmbench-write
+    Default: fmbench-write
     Type: String
     Description: Name of the Amazon S3 bucket for holding metrics and reports. AWS region and account id would be suffixed automatically for uniqueness.
     MinLength: 1
     MaxLength: 63
     AllowedPattern: (?!(^xn--|.+-s3alias$))^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$
+  CreateLocalProfile:
+    Default: "yes"
+    Type: String
+    Description: Create an AWS named profile for local execution (yes/no)
+    AllowedValues:
+      - "yes"
+      - "no"
 
 Conditions:
   IsGovCloudPartition: !Equals
     - !Select [0, !Split [ "aws-us-gov", !Ref "AWS::Partition"]]
     - ""
-  IsNotGovCloud: !Not [ !Condition IsGovCloudPartition ]
+  CreateProfile: !Equals
+    - !Ref CreateLocalProfile
+    - "yes"
 
 Resources:
-  CodeRepository:
-    Type: AWS::SageMaker::CodeRepository
-    Condition: IsNotGovCloud
-    Properties:
-      GitConfig:
-        RepositoryUrl: https://github.com/aws-samples/foundation-model-benchmarking-tool
-
-  NotebookInstance:
-    Type: AWS::SageMaker::NotebookInstance
-    Properties:
-      NotebookInstanceName: !Sub ${AWS::StackName}-notebook
-      InstanceType: ml.m6i.xlarge
-      RoleArn: !GetAtt NotebookRole.Arn
-      DefaultCodeRepository: !If [ IsNotGovCloud, !GetAtt CodeRepository.CodeRepositoryName, !Ref "AWS::NoValue" ]
-      VolumeSizeInGB: 200
-
-  NotebookRole:
+  BenchmarkingRole:
     Type: AWS::IAM::Role
     Properties:
       RoleName: !Sub ${AWS::StackName}-${AWS::Region}-role
       ManagedPolicyArns:
-        - !Sub arn:${AWS::Partition}:iam::aws:policy/AmazonSageMakerFullAccess
         - !Sub arn:${AWS::Partition}:iam::aws:policy/AmazonS3FullAccess
         - !Sub arn:${AWS::Partition}:iam::aws:policy/AWSCloudFormationReadOnlyAccess
         - !Sub arn:${AWS::Partition}:iam::aws:policy/AmazonBedrockFullAccess
@@ -56,15 +48,27 @@ Resources:
           - Effect: Allow
             Principal:
               Service:
-                - sagemaker.amazonaws.com
+                - lambda.amazonaws.com
             Action:
               - "sts:AssumeRole"
           - Effect: Allow
             Principal:
-              Service:
-                - ec2.amazonaws.com
+              AWS:
+                - !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:root
             Action:
               - "sts:AssumeRole"
+
+  LocalUserAccessPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: !Sub ${AWS::StackName}-local-policy
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action:
+              - sts:AssumeRole
+            Resource: !GetAtt BenchmarkingRole.Arn
 
   S3BucketForRead:
     Type: AWS::S3::Bucket
@@ -184,7 +188,7 @@ Resources:
           READ_BUCKET: !Ref S3BucketForRead
           WRITE_BUCKET: !Ref S3BucketForWrite
           MY_AWS_REGION: !Ref AWS::Region
-          ROLE_ARN: !GetAtt "NotebookRole.Arn"
+          ROLE_ARN: !GetAtt "BenchmarkingRole.Arn"
       Code:
         ZipFile: |
           import os
@@ -282,17 +286,117 @@ Resources:
 
               return
 
+  FMBenchLocalCredentialGenerator:
+    Type: AWS::Lambda::Function
+    Condition: CreateProfile
+    Properties:
+      Handler: index.lambda_handler
+      Description: "Generate local AWS profile credentials for FMBench"
+      Timeout: 300
+      Role: !GetAtt "LambdaBasicExecutionRole.Arn"
+      Runtime: python3.9
+      Code:
+        ZipFile: |
+          import json
+          import boto3
+          import logging
+          import cfnresponse
+          
+          logger = logging.getLogger()
+          logger.setLevel(logging.INFO)
+          
+          def lambda_handler(event, context):
+              logger.info("event: {}".format(event))
+              if event["RequestType"] == "Delete":
+                  response = dict(config=None, command=None)
+                  cfnresponse.send(event, context, cfnresponse.SUCCESS, response)
+                  return
+                  
+              try:
+                  role_arn = event['ResourceProperties']['RoleArn']
+                  region = event['ResourceProperties']['Region']
+                  read_bucket = event['ResourceProperties']['ReadBucket']
+                  write_bucket = event['ResourceProperties']['WriteBucket']
+                  
+                  profile_config = f"""
+          [profile fmbench]
+          region = {region}
+          role_arn = {role_arn}
+          source_profile = default
+          """
+                  
+                  config_command = f"""
+          # Add this to your ~/.aws/config file:
+          {profile_config}
+          
+          # Then run FMBench with:
+          export AWS_PROFILE=fmbench
+          export FMBENCH_READ_BUCKET={read_bucket}
+          export FMBENCH_WRITE_BUCKET={write_bucket}
+          fmbench --config-file s3://{read_bucket}/configs/bedrock/config-bedrock-template.yml
+          """
+                  
+                  response = {
+                      'profile_config': profile_config.strip(),
+                      'command': config_command.strip()
+                  }
+                  
+                  cfnresponse.send(event, context, cfnresponse.SUCCESS, response)
+              except Exception as e:
+                  logger.error(f"Exception: {e}")
+                  cfnresponse.send(event, context, cfnresponse.FAILED, {})
+
+  LocalCredentialsGenerator:
+    Type: AWS::CloudFormation::CustomResource
+    Condition: CreateProfile
+    Properties:
+      ServiceToken: !GetAtt "FMBenchLocalCredentialGenerator.Arn"
+      RoleArn: !GetAtt BenchmarkingRole.Arn
+      Region: !Ref AWS::Region
+      ReadBucket: !Ref S3BucketForRead
+      WriteBucket: !Ref S3BucketForWrite
+
 Outputs:
   S3BucketForRead:
+    Description: S3 bucket for reading data and configurations
+    Value: !Ref S3BucketForRead
+    Export:
+      Name: !Sub ${AWS::StackName}-ReadBucket
+  
+  S3BucketForReadArn:
+    Description: ARN of the S3 bucket for reading data
     Value: !GetAtt S3BucketForRead.Arn
+  
   S3BucketForWrite:
+    Description: S3 bucket for writing metrics and reports
+    Value: !Ref S3BucketForWrite
+    Export:
+      Name: !Sub ${AWS::StackName}-WriteBucket
+  
+  S3BucketForWriteArn:
+    Description: ARN of the S3 bucket for writing data
     Value: !GetAtt S3BucketForWrite.Arn
+  
+  BenchmarkingRoleArn:
+    Description: ARN of the IAM role for benchmarking
+    Value: !GetAtt BenchmarkingRole.Arn
+    Export:
+      Name: !Sub ${AWS::StackName}-RoleArn
+  
   FilesCopied:
-    Description: Files copied
+    Description: Number of files copied to the read bucket
     Value: !GetAtt "CustomSGResource.files_copied"
-  FileCopyError:
-    Description: Files copy error
-    Value: !GetAtt "CustomSGResource.error"
+  
   Region:
     Description: Deployed Region
     Value: !Ref AWS::Region
+  
+  LocalProfileConfig:
+    Condition: CreateProfile
+    Description: AWS profile configuration for local use
+    Value: !GetAtt LocalCredentialsGenerator.profile_config
+  
+  SetupCommands:
+    Condition: CreateProfile
+    Description: Commands to set up local environment
+    Value: !GetAtt LocalCredentialsGenerator.command
