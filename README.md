@@ -3,7 +3,7 @@
 </h1>
 
 <p align="center">
-    <p align="center">Benchmark any Foundation Model - Run Locally
+    <p align="center">Benchmark any Foundation Model - Direct and Simple
     <br>
 </p>
 <h4 align="center"><a href="" target="_blank">OpenAI</a> | <a href="" target="_blank">Azure</a> | <a href="" target="_blank">Google</a> | <a href="" target="_blank">Anthropic</a></h4>
@@ -14,19 +14,16 @@
 </h4>
 
 
-🚨 **What's new**: Simplified local execution - benchmark any model from your machine without complex infrastructure. 🚨
+🚨 **What's new**: Radically simplified with direct prompting - your prompts, exactly as you write them. 🚨
 
-`FMBench` is a Python package for running performance benchmarks and accuracy tests for **any Foundation Model**. The tool runs completely locally and supports multiple model providers including OpenAI, Azure OpenAI, Google, and Anthropic.
+`FMBench` is a Python package for benchmarking any foundation model with a focus on simplicity and directness. The tool runs locally on your machine and supports models from major providers including OpenAI, Azure, Google, and Anthropic.
 
 ## Key Features
 
-1. **Simple Local Setup**: Run the benchmarking tool directly on your machine, without complex infrastructure.
-
-2. **Multi-Provider Support**: Benchmark models from OpenAI, Azure OpenAI, Google, and Anthropic with unified metrics.
-
-3. **Comprehensive Metrics**: Measure performance (latency, throughput, tokens/second) and accuracy.
-
-4. **Model Comparison**: Compare multiple models side-by-side to find the best one for your use case.
+1. **Direct Prompting**: Your prompts are used exactly as written, no templates or transformations
+2. **Smart Optimization**: Optional automatic formatting for each model's style
+3. **Local Operation**: Run benchmarks directly on your machine without cloud dependencies
+4. **Multi-Provider Support**: Test models from any provider with a unified approach
 
 ## Quickstart
 
@@ -39,13 +36,16 @@ mkdir -p ~/fmbench/{configs,results}
 export FMBENCH_LOCAL_MODE=yes
 export FMBENCH_RESULTS_DIR=~/fmbench/results
 
-# Create a configuration file for OpenAI models
+# Create a configuration file
 cat > ~/fmbench/configs/config.yml << EOF
 general:
-  name: openai-benchmark
+  name: direct-benchmark
+  direct_prompting: true
+
 aws:
   region: us-east-1
   s3_and_or_local_file_system: local
+
 experiments:
   - name: gpt-4
     model_id: gpt-4
@@ -56,6 +56,7 @@ experiments:
     inference_script: litellm_predictor.py
     inference_spec:
       parameter_set: openai
+
 inference_parameters:
   openai:
     temperature: 0.1
@@ -81,34 +82,30 @@ fmbench --config-file ~/fmbench/configs/config.yml --local-mode yes
 
 ### 2.1.6
 
-1. **Simplified Local Mode**: Run benchmarks directly on your machine with minimal setup
-2. **External Model Support**: Benchmark OpenAI, Azure OpenAI, Google, and Anthropic models
-3. **No Infrastructure Required**: No need for AWS accounts, SageMaker, EC2, or S3 buckets
-4. **Unified Metrics**: Compare performance across multiple providers with consistent metrics
+1. **Direct Prompting**: Your prompts used exactly as provided - no templates
+2. **Simplified Local Mode**: Run benchmarks on your machine with minimal setup
+3. **External Model Support**: Test any model from major providers
+4. **No Infrastructure Required**: No AWS resources needed
 
 [See full release history](./release_history.md)
 
-## Getting Started
+## Dataset Format
 
-`FMBench` is available as a Python package on [PyPi](https://pypi.org/project/fmbench) and is run as a command line tool once it is installed. 
+Your input dataset should contain prompts exactly as you want them sent to models:
 
-> [!IMPORTANT]
-> 💡 [All **documentation** for `FMBench` is available on the `FMBench` website](https://aws-samples.github.io/foundation-model-benchmarking-tool/index.html)  
+```jsonl
+{"inputs": "Explain quantum computing.", "ground_truth": "Quantum computing uses quantum bits..."}
+{"inputs": "What is the capital of France?", "ground_truth": "Paris"}
+```
 
-You can run `FMBench` on your local machine with minimal setup. See our [Quickstart Guide](https://aws-samples.github.io/foundation-model-benchmarking-tool/quickstart.html) for detailed instructions.
-
-### Simple Three-Step Setup
+## Simple Three-Step Setup
 
 1. **Install FMBench**:
    ```bash
    pip install -U fmbench
    ```
 
-2. **Create a configuration file**:
-   ```bash
-   mkdir -p ~/fmbench/configs
-   # Create config.yml with your model settings
-   ```
+2. **Create a configuration file** with your model settings
 
 3. **Run your benchmark**:
    ```bash
@@ -116,42 +113,12 @@ You can run `FMBench` on your local machine with minimal setup. See our [Quickst
    fmbench --config-file ~/fmbench/configs/config.yml --local-mode yes
    ```
 
-## Results
-
-After running a benchmark, you'll find detailed results in your specified output directory, including:
-
-- Performance metrics (latency, throughput, token rates)
-- Model accuracy evaluations
-- Comparative analysis across models
-- CSV and JSON data for further analysis
-
-Here is a screenshot of the report generated by `FMBench`:
-![Report](https://github.com/aws-samples/foundation-model-benchmarking-tool/blob/main/img/results.gif?raw=true)
-
 ## Documentation
 
 For detailed instructions, see:
 - [Quickstart Guide](https://aws-samples.github.io/foundation-model-benchmarking-tool/quickstart.html)
-- [Local Mode Documentation](https://aws-samples.github.io/foundation-model-benchmarking-tool/local_mode.html)
+- [Direct Prompting](https://aws-samples.github.io/foundation-model-benchmarking-tool/direct_prompting.html)
 - [External Models Guide](https://aws-samples.github.io/foundation-model-benchmarking-tool/external_models.md)
-
-## Enhancements
-
-View the [ISSUES](https://github.com/aws-samples/foundation-model-benchmarking-tool/issues) on GitHub and add any you might think be an beneficial iteration to this benchmarking harness.
-
-## Security
-
-See [CONTRIBUTING](CONTRIBUTING.md#security-issue-notifications) for more information.
-
-## License
-
-This library is licensed under the MIT-0 License. See the [LICENSE](./LICENSE) file.
-
-## Star History
-
-[![Star History Chart](https://api.star-history.com/svg?repos=aws-samples/foundation-model-benchmarking-tool&type=Date)](https://star-history.com/#aws-samples/foundation-model-benchmarking-tool&Date)
-
-[![Stargazers repo roster for @aws-samples/foundation-model-benchmarking-tool](https://reporoster.com/stars/aws-samples/foundation-model-benchmarking-tool)](https://github.com/aws-samples/foundation-model-benchmarking-tool/stargazers)
 
 ## Support
 
@@ -166,6 +133,6 @@ This library is licensed under the MIT-0 License. See the [LICENSE](./LICENSE) f
   <img src="https://contrib.rocks/image?repo=aws-samples/foundation-model-benchmarking-tool" />
 </a>
 
-## References
-<a id="1">[1]</a> 
-[Pat Verga et al., "Replacing Judges with Juries: Evaluating LLM Generations with a Panel of Diverse Models",    arXiv:2404.18796, 2024.](https://arxiv.org/abs/2404.18796)
+## License
+
+This library is licensed under the MIT-0 License. See the [LICENSE](./LICENSE) file.
