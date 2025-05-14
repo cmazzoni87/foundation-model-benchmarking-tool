@@ -172,7 +172,7 @@ def count_tokens(text: str) -> int:
     return _tokenizer.count_tokens(text)
 
 
-def process_item(item, prompt_template_keys: List, prompt_fmt: str) -> Dict:
+def process_item(item, prompt_template_keys: List, prompt_fmt: str, model_id: str = None) -> Dict:
     args = {}
     for k in prompt_template_keys:
         v = _normalize(item[k])
@@ -180,7 +180,7 @@ def process_item(item, prompt_template_keys: List, prompt_fmt: str) -> Dict:
         args[f"{k}_len"] = _tokenizer.count_tokens(v)
     prompt = prompt_fmt.format(**args)
     prompt_len = count_tokens(prompt)
-    return args | {"prompt": prompt, "prompt_len": prompt_len}
+    return args | {"prompt": prompt, "prompt_len": prompt_len, "original_prompt": prompt}
 
 
 def nt_to_posix(p: str) -> str:

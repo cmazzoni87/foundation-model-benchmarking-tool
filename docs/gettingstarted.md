@@ -2,18 +2,46 @@
 
 `FMBench` is available as a Python package on [PyPi](https://pypi.org/project/fmbench) and is run as a command line tool once it is installed. All data that includes metrics, reports and results are stored in an Amazon S3 bucket.
 
-While technically you can run `FMBench` on any AWS compute but practically speaking we either run it on a SageMaker Notebook or on EC2. Both these options are described below.
+While technically you can run `FMBench` on any AWS compute, practically speaking it's best to run it on a SageMaker Notebook to benchmark Amazon Bedrock models.
 
 **Intro Video**
 
 [![FMBench Intro](img/fmbench-thumbnail.png)](https://www.youtube.com/watch?v=yvRCyS0J90c)
 
-![FMBench deployments](img/fmbench-deployment1.png)
+## Running `FMBench` on Amazon SageMaker Notebook
 
-## `FMBench` in a client-server configuration on Amazon EC2
+1. Launch the AWS CloudFormation template included in this repository using one of the buttons from the table below. The CloudFormation template creates Amazon S3 buckets, Amazon IAM role and an Amazon SageMaker Notebook with this repository cloned.
 
-Often times there might be a need where a platform team would like to have a bunch of LLM endpoints deployed in an account available permanently for data science teams or application teams to benchmark performance and accuracy for their specific use-case. They can take advantage of a special client-server configuration for `FMBench` where it can be used to deploy models on EC2 instances in one AWS account (called the server account) and run tests against these endpoints from `FMBench` deployed on EC2 instances in another AWS account (called the client AWS account).
+   |AWS Region                |     Link        |
+   |:------------------------:|:-----------:|
+   |us-east-1 (N. Virginia)    | [<img src="../img/ML-FMBT-cloudformation-launch-stack.png">](https://console.aws.amazon.com/cloudformation/home?region=us-east-1#/stacks/new?stackName=fmbench&templateURL=https://aws-blogs-artifacts-public.s3.amazonaws.com/artifacts/ML-FMBT/template.yml) |
+   |us-west-2 (Oregon)    | [<img src="../img/ML-FMBT-cloudformation-launch-stack.png">](https://console.aws.amazon.com/cloudformation/home?region=us-west-2#/stacks/new?stackName=fmbench&templateURL=https://aws-blogs-artifacts-public.s3.amazonaws.com/artifacts/ML-FMBT/template.yml) |
+   |us-gov-west-1 (GovCloud West)    | [<img src="../img/ML-FMBT-cloudformation-launch-stack.png">](https://us-gov-west-1.console.amazonaws-us-gov.com/cloudformation/home?region=us-gov-west-1#/stacks/new?stackName=fmbench&templateURL=https://aws-blogs-artifacts-public.s3.amazonaws.com/artifacts/ML-FMBT/template.yml) |
 
-This has the advantage that every team that wants to benchmark a set of LLMs does not first have to deploy the LLMs, a platform team can do that for them and have these LLMs available for a longer duration as these teams do their benchmarking, for example for their specific datasets, for their specific cost and performance criteria. Using `FMBench` in this way makes the process simpler for both teams as the platform team can use `FMBench` for easily deploying the models with full control on the configuration of the serving stack without having to write any LLM deployment code for EC2 and the data science teams or application teams can test with different datasets, performance criteria and inference parameters. As long as the security groups have an inbound rule to allow access to the model endpoint (typically TCP port 8080) an `FMBench` installation in the client AWS account should be able to access an endpoint in the server AWS account.
+2. Once the CloudFormation stack is created, navigate to SageMaker Notebooks and open the `fmbench-notebook`.
 
-![FMBench deployments client-server](img/fmbench-deployment2.png)
+3. On the `fmbench-notebook` open a Terminal and run the following commands.
+
+   ```bash
+   curl -LsSf https://astral.sh/uv/install.sh | sh
+   export PATH="$HOME/.local/bin:$PATH"
+   uv venv .fmbench_python312 --python 3.12
+   source .fmbench_python312/bin/activate
+   uv pip install -U fmbench
+   ```
+
+4. Now you are ready to run `fmbench` with the following command line. We will use a sample config file placed in the S3 bucket by the CloudFormation stack for a quick first run.
+   
+   ```bash
+   account=`aws sts get-caller-identity | jq .Account | tr -d '"'`
+   region=`aws configure get region`
+   fmbench --config-file s3://sagemaker-fmbench-read-${region}-${account}/configs/bedrock/config-bedrock-claude.yml > fmbench.log 2>&1
+   ```
+
+5. Open another terminal window and do a `tail -f` on the `fmbench.log` file to see all the traces being generated at runtime.
+   
+   ```bash
+   tail -f fmbench.log
+   ```
+
+6. The generated reports and metrics are available in the `sagemaker-fmbench-write-<replace_w_your_aws_region>-<replace_w_your_aws_account_id>` bucket. The metrics and report files are also downloaded locally and in the `results` directory (created by `FMBench`) and the benchmarking report is available as a markdown file called `report.md` in the `results` directory.

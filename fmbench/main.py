@@ -134,20 +134,14 @@ def _parse_key_value(option):
 def main():
     parser = argparse.ArgumentParser(description='Run FMBench with a specified config file.')
     parser.add_argument('--config-file', type=str, help='The S3 URI of your Config File', required=True)
-    role_help = 'The ARN of the role to be used for FMBench. If an \
-                 Amazon SageMaker endpoint is being deployed \
-                 through FMBench then this role would also be used \
-                 by that endpoint'
-    parser.add_argument('--role-arn', type=str, default=None, required=False, help=role_help)
     # add an option to run FMBench local mode. If local mode is set to yes, then FMBench uses read and write data locally and if no, 
     # then the test will continue to interact with S3
     parser.add_argument('--local-mode', type=str, default=None, choices=['yes', 'no'], help='Specify if running in local mode or not. Options: yes, no. Default is no.')
     # add an option to run FMBench with a custom tmp file argument. Users if running in local mode can configure a custom tmp file 
     # instead of using the default /tmp directory
     parser.add_argument('--tmp-dir', type=str, default=None, required=False, help='An optional tmp directory if fmbench is running in local mode.')
-    parser.add_argument('--write-bucket', type=str, help='Write bucket that is used for sagemaker endpoints in local mode and storing metrics in s3 mode.')
-    # Add the generic -A option that can be used multiple times. The user can now provide the tp degree, 
-    # the batch size, instance type and so on
+    parser.add_argument('--write-bucket', type=str, help='Write bucket that is used for storing metrics in s3 mode.')
+    # Add the generic -A option that can be used multiple times. The user can now provide custom parameters
     parser.add_argument('-A', 
                        action='append',
                        type=_parse_key_value,
@@ -191,7 +185,7 @@ def main():
                 logger.error("Write bucket is not provided when local mode is set to 'yes'")
                 sys.exit(1)
             else:
-                # set the environment variable for the write bucket name to be configured and used for sagemaker endpoints and 
+                # set the environment variable for the write bucket name to be configured and used for
                 # metrics stored in s3 mode with local mode is set to "yes" by the user
                 os.environ["WRITE_BUCKET"] = args.write_bucket
                 logger.info(f"Write bucket specified in local mode: {args.write_bucket}")
@@ -200,14 +194,6 @@ def main():
                 logger.info(f"tmp directory specified in local mode: {args.tmp_dir}")
             else:
                 logger.info(f"Custom tmp file not provided.")
-
-
-    # if a role arn is specified then set it as an env var so that the rest of the code
-    # can use it. This will then be used to set the templatized "sagemaker_execution_role"
-    # parameter in the config file
-    if args.role_arn:
-        print(f"setting FMBENCH_ROLE_ARN env variable to {args.role_arn}")
-        os.environ['FMBENCH_ROLE_ARN'] = args.role_arn
 
     # Proceed with the rest of your script's logic, passing the config file as needed
     run_notebooks(args.config_file)    

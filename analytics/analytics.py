@@ -13,7 +13,7 @@ import argparse
 import pandas as pd
 from pathlib import Path
 from tomark import Tomark
-from sagemaker_cost_rpm_plot import plot_best_cost_instance_heatmap, plot_tps_vs_cost
+from cost_rpm_plot import plot_best_cost_instance_heatmap, plot_tps_vs_cost
 
 logging.basicConfig(format='[%(asctime)s] p%(process)s {%(filename)s:%(lineno)d} %(levelname)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -26,38 +26,29 @@ CONCURRENCY_THRESHOLD: int = 1
 ANALYTICS_RESULTS_DIR: str = os.path.join("analytics", "results")
 os.makedirs(ANALYTICS_RESULTS_DIR, exist_ok=True)
 PAYLOAD_FILE_OF_INTEREST: str = "payload_en_1000-2000.jsonl"
-PRICING_FILE_PATH: str = os.path.join("src", "fmbench", "configs",
+PRICING_FILE_PATH: str = os.path.join("fmbench", "configs",
                                       "pricing.yml")
 DEFAULT_COST_WEIGHT: float = 0.6
 
 def cost_per_txn(row, pricing):
-    txns_per_hour = row['transactions_per_minute'] * 60
-    if pricing['pricing']['instance_based'].get(row['instance_type']) is not None:
-        instance_cost_per_hour = pricing['pricing']['instance_based'][row['instance_type']]
-        cost_per_txn = round(instance_cost_per_hour / txns_per_hour, 4)
-    else:
-        input_token_cost = pricing['pricing']['token_based'][row['instance_type']]['input-per-1k-tokens']
-        output_token_cost = pricing['pricing']['token_based'][row['instance_type']]['output-per-1k-tokens']
-        cost_per_txn = (row['prompt_token_count_mean']/1000) * input_token_cost + \
-                       (row['completion_token_count_mean']/1000) * output_token_cost
-        cost_per_txn = round(cost_per_txn, 4)
+    # For Bedrock, we only use token-based pricing
+    input_token_cost = pricing['pricing']['token_based'][row['instance_type']]['input-per-1k-tokens']
+    output_token_cost = pricing['pricing']['token_based'][row['instance_type']]['output-per-1k-tokens']
+    cost_per_txn = (row['prompt_token_count_mean']/1000) * input_token_cost + \
+                   (row['completion_token_count_mean']/1000) * output_token_cost
+    cost_per_txn = round(cost_per_txn, 4)
     return cost_per_txn
 
 
 def cost_per_1k_tokens(row, pricing):
-    txns_per_hour = row['transactions_per_minute'] * 60
-    tokens_per_hour = (row['prompt_token_count_mean'] + row['completion_token_count_mean']) * txns_per_hour
-    if pricing['pricing']['instance_based'].get(row['instance_type']) is not None:
-        instance_cost_per_hour = pricing['pricing']['instance_based'][row['instance_type']]
-        cost_per_1k_tokens = round(1000 * (instance_cost_per_hour / tokens_per_hour), 8)
-    else:
-        input_token_cost = pricing['pricing']['token_based'][row['instance_type']]['input-per-1k-tokens']
-        output_token_cost = pricing['pricing']['token_based'][row['instance_type']]['output-per-1k-tokens']
-        total_tokens = row['prompt_token_count_mean'] + row['completion_token_count_mean']
+    # For Bedrock, we only use token-based pricing
+    input_token_cost = pricing['pricing']['token_based'][row['instance_type']]['input-per-1k-tokens']
+    output_token_cost = pricing['pricing']['token_based'][row['instance_type']]['output-per-1k-tokens']
+    total_tokens = row['prompt_token_count_mean'] + row['completion_token_count_mean']
 
-        cost_per_1k_tokens = (row['prompt_token_count_mean'] / total_tokens) * input_token_cost + \
-                             (row['completion_token_count_mean'] / total_tokens) * output_token_cost
-        cost_per_1k_tokens = round(cost_per_1k_tokens, 8)
+    cost_per_1k_tokens = (row['prompt_token_count_mean'] / total_tokens) * input_token_cost + \
+                         (row['completion_token_count_mean'] / total_tokens) * output_token_cost
+    cost_per_1k_tokens = round(cost_per_1k_tokens, 8)
     return cost_per_1k_tokens
 
 def parse_yaml_config(file_path):
@@ -115,20 +106,15 @@ def parse_yaml_config(file_path):
 # which the number of smaller instances required would be so much that it 
 # would be more economical to use fewer instances of the larger more expensive instances.
 def cost_per_n_rpm(r, rpm, pricing):
-    if pricing['pricing']['instance_based'].get(r['instance_type']):
-        instance_count_needed = math.ceil(rpm / r['transactions_per_minute'])
-        cost = round(instance_count_needed * pricing['pricing']['instance_based'][r['instance_type']], 2)
-    else:
-        input_token_cost = pricing['pricing']['token_based'][r['instance_type']]['input-per-1k-tokens']
-        output_token_cost = pricing['pricing']['token_based'][r['instance_type']]['output-per-1k-tokens']
-        total_tokens = r['prompt_token_count_mean'] + r['completion_token_count_mean']
-
-        cost_per_txn = (r['prompt_token_count_mean']/1000) * input_token_cost + \
-                             (r['completion_token_count_mean']/1000) * output_token_cost
-        #txn_per_hour = r['transactions_per_minute'] * 60
-        txn_per_hour = rpm * 60
-        cost = round(cost_per_txn * txn_per_hour, 8)
-        instance_count_needed = 1
+    # For Bedrock, we only use token-based pricing and we don't need multiple instances
+    input_token_cost = pricing['pricing']['token_based'][r['instance_type']]['input-per-1k-tokens']
+    output_token_cost = pricing['pricing']['token_based'][r['instance_type']]['output-per-1k-tokens']
+    
+    cost_per_txn = (r['prompt_token_count_mean']/1000) * input_token_cost + \
+                       (r['completion_token_count_mean']/1000) * output_token_cost
+    txn_per_hour = rpm * 60
+    cost = round(cost_per_txn * txn_per_hour, 8)
+    instance_count_needed = 1  # For Bedrock, this is always 1 as it's serverless
 
     return (instance_count_needed, cost)
 

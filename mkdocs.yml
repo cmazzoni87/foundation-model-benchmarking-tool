@@ -61,18 +61,10 @@ nav:
       - CLI: cli.md
       - Features: features.md
       - Workflow: workflow.md
-      - SageMaker: quickstart.md      
-      - EC2: ec2.md
-      - Quarto: quarto.md
   - Benchmarking:
       - Main: benchmarking.md
       - Model evaluations: accuracy.md
-      - Deepseek: deepseek.md
       - Bedrock: benchmarking_on_bedrock.md
-      - Sagemaker: benchmarking_on_sagemaker.md
-      - EKS: benchmarking_on_eks.md
-      - EC2: benchmarking_on_ec2.md
-      - Neuron: neuron.md
       - Docker: run_as_container.md
   
   - Configs:
@@ -83,7 +75,6 @@ nav:
       - BYO dataset: byo_dataset.md
       - Build FMBench: build.md
       - Analytics: analytics.md
-      - Running multiple model copies: mm_copies.md
 
   - Results:
       - Report: results.md

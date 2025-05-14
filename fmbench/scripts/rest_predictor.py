@@ -96,9 +96,10 @@ class RESTPredictor(FMBenchPredictor):
         """The endpoint name property."""
         return self._endpoint_name
 
-    # The rest ep is deployed on an instance that incurs hourly cost hence, the calculcate cost function
-    # computes the cost of the experiment on an hourly basis. If your instance has a different pricing structure
-    # modify this function.
+    # For external endpoints, this function calculates cost based on either:
+    # 1. Instance-based pricing (if the external endpoint runs on an hourly-billed instance)
+    # 2. Token-based pricing (if supported in the pricing configuration)
+    # Modify this function if your external endpoint has a different pricing structure
     def calculate_cost(self,
                        instance_type: str,
                        instance_count: int,
@@ -109,14 +110,24 @@ class RESTPredictor(FMBenchPredictor):
         """Calculate the cost of each experiment run."""
         experiment_cost: Optional[float] = None
         try:
-            instance_based_pricing = pricing['pricing']['instance_based']
-            hourly_rate = instance_based_pricing.get(instance_type, None)
-            logger.info(f"the hourly rate for running on {instance_type} is {hourly_rate}, instance_count={instance_count}")
-            # calculating the experiment cost for instance based pricing
-            instance_count = instance_count if instance_count else 1
-            experiment_cost = (hourly_rate / 3600) * duration * instance_count
+            # Check if token-based pricing exists for this model
+            token_based_pricing = pricing.get('pricing', {}).get('token_based', {}).get(instance_type)
+            if token_based_pricing:
+                # Calculate using token-based pricing
+                input_token_cost = (prompt_tokens / 1000.0) * token_based_pricing['input-per-1k-tokens']
+                output_token_cost = (completion_tokens / 1000.0) * token_based_pricing['output-per-1k-tokens']
+                experiment_cost = input_token_cost + output_token_cost
+                logger.info(f"Using token-based pricing for {instance_type}. Cost: ${experiment_cost:.6f}")
+            else:
+                # Fall back to instance-based pricing
+                instance_based_pricing = pricing['pricing']['instance_based']
+                hourly_rate = instance_based_pricing.get(instance_type, None)
+                logger.info(f"The hourly rate for running on {instance_type} is {hourly_rate}, instance_count={instance_count}")
+                # calculating the experiment cost for instance based pricing
+                instance_count = instance_count if instance_count else 1
+                experiment_cost = (hourly_rate / 3600) * duration * instance_count
         except Exception as e:
-            logger.error(f"exception occurred during experiment cost calculation, exception={e}")
+            logger.error(f"Exception occurred during experiment cost calculation, exception={e}")
         return experiment_cost
     
     def get_metrics(self,

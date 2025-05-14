@@ -8,8 +8,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "fmbench"
-version = "2.1.6"
-description = "Benchmark performance of **any Foundation Model (FM)** deployed on **any AWS Generative AI service**, be it **Amazon SageMaker**, **Amazon Bedrock**, **Amazon EKS**, or **Amazon EC2**. The FMs could be deployed on these platforms either directly through `FMbench`, or, if they are already deployed then also they could be benchmarked through the **Bring your own endpoint** mode supported by `FMBench`."
+version = "3.0.0"
+description = "Benchmark performance of any Foundation Model (FM) available on Amazon Bedrock. Compare performance and accuracy metrics across different models to find the optimal solution for your use case."
 authors = [
     { name = "Amit Arora", email = "aroraai@amazon.com" },
     { name = "Madhur Prashant", email = "Madhurpt@amazon.com" }
@@ -19,7 +19,7 @@ readme = "README.md"
 license = { text = "MIT" }
 
 
-keywords = ["benchmarking", "sagemaker", "bedrock", "bring your own endpoint", "generative-ai", "foundation-models", "llama3", "ec2", "eks"]
+keywords = ["benchmarking", "bedrock", "generative-ai", "foundation-models"]
 requires-python = ">=3.12,<3.13"
 classifiers = [
     "Programming Language :: Python :: 3",
@@ -29,7 +29,6 @@ classifiers = [
 dependencies = [
    "boto3>=1.36.6",
    "datasets>=3.2.0",
-   "ec2-metadata>=2.14.0",
    "ipykernel>=6.29.5",
    "ipywidgets>=8.1.5",
    "jinja2>=3.1.5",
@@ -40,7 +39,6 @@ dependencies = [
    "mkdocs>=1.6.1",
    "mkdocs-material>=9.5.50",
    "mknotebooks>=0.8.0",
-   "nvitop>=1.4.1",
    "pandas>=2.2.3",
    "papermill>=2.6.0",
    "pip>=24.3.1",
@@ -48,9 +46,7 @@ dependencies = [
    "psutil>=6.1.1",
    "pydantic>=2.10.6",
    "pyyaml>=6.0.2",
-   "ray>=2.41.0",
    "requests>=2.32.3",
-   "sagemaker>=2.237.3",
    "seaborn>=0.13.2",
    "sentence-transformers>=3.4.0",
    "tomark>=0.1.4",

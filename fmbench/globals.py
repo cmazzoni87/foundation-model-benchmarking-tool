@@ -19,9 +19,6 @@ FMBENCH_PACKAGE_NAME: str = "fmbench"
 HF_DATASET_PREFIX: str = "hf:"
 DEFAULT_IMAGE_FORMAT: str = "JPEG"
 
-# This is the default production variant name that is given to sagemaker endpoints
-DEFAULT_PRODUCTION_VARIANT_NAME: str = 'AllTraffic'
-
 # This is the ds_N default value of the number of rows to be processed from the hf dataset.
 # If this value is already given in the 'dataset' section of the config file, that will be used.
 DEFAULT_HF_DS_N_VALUE: int = 100
@@ -50,28 +47,14 @@ if region_name is None:
     os.environ["AWS_DEFAULT_REGION"] = region_name
 print(f"region_name={region_name}")
 
-# Configuring the role ARN -- extract the role name
+# Configuring the caller identity
 caller = boto3.client('sts').get_caller_identity()
 account_id = caller.get('Account')
-role_arn_from_env = os.environ.get('FMBENCH_ROLE_ARN')
-if role_arn_from_env:
-    print(f"role_arn_from_env={role_arn_from_env}, using it to set arn_string")
-    arn_string = role_arn_from_env
-else:
-    print(f"role_arn_from_env={role_arn_from_env}, using current sts caller identity to set arn_string")
-    arn_string = caller.get('Arn')
-    # if this is an assumed role then remove the assumed role related pieces
-    # because we are also using this role for deploying the SageMaker endpoint
-    # arn:aws:sts::015469603702:assumed-role/SSMDefaultRoleForOneClickPvreReporting/i-0c5bba16a8b3dac51
-    # should be converted to arn:aws:iam::015469603702:role/SSMDefaultRoleForOneClickPvreReporting
-    if ":assumed-role/" in arn_string:
-        role_name = arn_string.split("/")[-2]
-        arn_string = f"arn:aws:iam::{account_id}:role/{role_name}"
-        print(f"the sts role is an assumed role, setting arn_string to {arn_string}")
-    else:
-        arn_string = caller.get('Arn')
+aws_identity = caller.get('Arn')
 
-ROLE_NAME = arn_string.split('/')[-1]
+# Set ROLE_NAME to a unique identifier based on the AWS identity 
+# (used for directory path uniqueness)
+ROLE_NAME = aws_identity.split('/')[-1]
 
 current_config_file = os.environ.get("CONFIG_FILE_FMBENCH")
 # if var is true, use that from cli
@@ -116,7 +99,6 @@ except json.JSONDecodeError:
     custom_params = {}
 
 args = dict(region=session.region_name,
-            role_arn=arn_string,
             read_tmpdir=os.path.join(tmp_dir, defaults.DEFAULT_LOCAL_READ),
             write_tmpdir=os.path.join(tmp_dir, defaults.DEFAULT_LOCAL_WRITE),
             write_bucket=write_bucket,
