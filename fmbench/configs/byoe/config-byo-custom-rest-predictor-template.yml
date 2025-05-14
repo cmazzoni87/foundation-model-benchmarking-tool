@@ -1,0 +1,118 @@
+## Bring Your Own Endpoint (BYOE) Template for Bedrock-only version of FMBench
+## This template shows how to benchmark Bedrock models against external REST endpoints
+
+general:
+  name: bedrock-vs-external-endpoint-benchmark
+
+aws:
+  region: {region}
+  bucket: {write_bucket}
+  s3_and_or_local_file_system: s3
+
+run_steps:
+  0_setup.ipynb: yes
+  1_generate_data.ipynb: yes
+  2_deploy_model.ipynb: yes  # Set to yes even though deploy is 'no' - this just registers endpoints
+  3_run_inference.ipynb: yes
+  4_get_evaluations.ipynb: yes
+  5_model_metric_analysis.ipynb: yes
+  6_cleanup.ipynb: no
+
+# Source data files 
+# You can use longbench dataset as an example
+source_data_files:
+  # Format: hf:dataset-id/subset-name/split-name
+  # If no subset name is provided, use "default".
+  - hf:THUDM/LongBench/2wikimqa_e/test
+
+# Metrics thresholds for the report
+report:
+  latency_budget: 3
+  cosine_similarity_budget: 0.3
+  accuracy_budget: 0.7
+  accuracy_error_rate_budget: 0.3
+  cost_per_10k_txn_budget: 200
+  error_rate_budget: 0.1
+
+# Dataset configuration
+datasets:
+  min_iters_per_combination: 10
+  max_iters_per_combination: 20
+  prompt_template_keys:
+    - input
+    - context
+  filters:
+    - language: en    
+      min_length_in_tokens: 1000
+      max_length_in_tokens: 2000
+      payload_file: payload_en_1000-2000.jsonl
+  metrics:
+    dataset_of_interest: en_1000-2000
+
+# Pricing information
+pricing: pricing.yml
+
+# Prompt template to use
+prompt_template_file: prompt_template_llama3.txt
+
+# Model evaluations
+model_evaluations: model_eval_all_info.yml
+ground_truth_col_key: answers
+question_col_key: input
+
+# Define the inference parameters for each type of endpoint
+inference_parameters:
+  bedrock:
+    temperature: 0.1
+    max_tokens: 100
+    top_p: 0.9
+  custom_rest:
+    temperature: 0.1
+    max_tokens: 100
+    top_p: 0.9
+    stop: ["<|end|>", "</answer>"]
+
+# Model configurations
+experiments:
+  # Bedrock model
+  - name: claude-sonnet
+    model_id: anthropic.claude-3-sonnet-20240229-v1:0
+    model_name: Claude 3 Sonnet
+    ep_name: anthropic.claude-3-sonnet-20240229-v1:0
+    instance_type: anthropic.claude-3-sonnet-20240229-v1:0
+    deploy: no
+    instance_count: 1
+    inference_script: bedrock_predictor.py
+    inference_spec:
+      parameter_set: bedrock
+    concurrency_levels:
+      - 1
+      - 2
+    payload_files:
+      - payload_en_1000-2000.jsonl
+
+  # External custom endpoint
+  - name: external-endpoint
+    model_id: external-model
+    model_name: External Custom Model
+    ep_name: "https://your-endpoint-url/generate"  # Replace with your actual endpoint URL
+    instance_type: external-model  # Used for pricing reference
+    deploy: no
+    instance_count: 1
+    inference_script: custom_rest_predictor.py
+    inference_spec:
+      parameter_set: custom_rest
+      headers:
+        Content-Type: "application/json"
+        Authorization: "Bearer your-api-key"  # Replace with your actual API key
+      parameters:
+        temperature: 0.1
+        max_tokens: 100
+        top_p: 0.9
+        stop: ["<|end|>", "</answer>"]
+      model_id: "external-model-id"  # If your API requires a model ID
+    concurrency_levels:
+      - 1
+      - 2
+    payload_files:
+      - payload_en_1000-2000.jsonl
